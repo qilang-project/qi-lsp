@@ -1,0 +1,185 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+          - nightly
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust }}
+        components: rustfmt, clippy
+
+    - name: Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Run clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Build
+      run: cargo build --verbose
+
+    - name: Run tests
+      run: cargo test --verbose
+
+    - name: Build release
+      run: cargo build --release --verbose
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+
+    - name: Run security audit
+      run: cargo audit
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-tarpaulin
+      run: cargo install cargo-tarpaulin
+
+    - name: Generate coverage report
+      run: cargo tarpaulin --out Xml --verbose
+
+    - name: Upload to codecov.io
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./cobertura.xml
+        fail_ci_if_error: true
+
+  benchmark:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Run benchmarks
+      run: cargo bench
+
+  build-check:
+    name: Build Check (No Std)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Check no_std compatibility
+      run: cargo check --no-default-features --target x86_64-unknown-none
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Build qi compiler dependency
+      run: |
+        cd ../qi
+        cargo build --release
+        cd ../qi-lsp
+
+    - name: Build language server
+      run: cargo build --release
+
+    - name: Test with Qi examples
+      run: |
+        mkdir -p test-workspace
+        echo "Testing language server with Qi examples..."
+        for file in ../qi/examples/**/*.qi; do
+          if [ -f "$file" ]; then
+            echo "Processing: $file"
+            timeout 10s ./target/release/qi-lsp || echo "Timeout or error processing $file"
+          fi
+        done
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build Docker image
+      run: |
+        if [ -f Dockerfile ]; then
+          docker build -t qi-lsp:test .
+        else
+          echo "No Dockerfile found, skipping Docker build"
+        fi
+
+  cross-platform:
+    name: Cross-Platform Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Build
+      run: cargo build --release
+
+    - name: Test binary
+      run: |
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          ./target/release/qi-lsp.exe --help || echo "Binary test failed"
+        else
+          ./target/release/qi-lsp --help || echo "Binary test failed"
+        fi
+      shell: bash

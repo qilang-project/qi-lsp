@@ -1,0 +1,68 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Log files
+*.log
+
+# OS generated files
+Thumbs.db
+.DS_Store?
+
+# Temporary files
+*.tmp
+*.temp
+
+# Debug output
+debug/
+target/debug/deps/
+target/debug/build/
+target/debug/incremental/
+
+# Release output
+target/release/deps/
+target/release/build/
+target/release/incremental/
+
+# Benchmark output
+target/criterion/
+
+# Test output
+target/coverage/
+
+# Profiling data
+*.profraw
+*.profdata
+
+# Local configuration
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Node.js dependencies (if using any Node tools for testing)
+node_modules/
+
+# Backup files
+*.bak
+*.backup
+
+# Build cache
+/.cargo/
+/target/
+
+# Rust analyzer
+.rust-analyzer/
+
+# Local development
+local/
+dev/
