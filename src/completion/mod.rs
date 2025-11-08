@@ -81,6 +81,8 @@ fn get_keyword_completions() -> Vec<CompletionItem> {
         ("导入", "import", "导入 ${1:module};"),
         ("打印", "print", "打印(\"${1:message}\");"),
         ("等待", "await", "等待 ${1:async_call};"),
+        ("取地址", "address-of", "取地址 ${1:variable}"),
+        ("解引用", "dereference", "解引用 ${1:pointer}"),
     ];
 
     keywords
@@ -332,40 +334,6 @@ fn get_function_completions(ast: &qi_compiler::parser::Program) -> Vec<Completio
                 sort_text: Some(format!("func{}", func_decl.name)),
                 filter_text: Some(func_decl.name.clone()),
                 insert_text: Some(func_decl.name.clone()),
-                insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
-                insert_text_mode: None,
-            label_details: None,
-                text_edit: None,
-                additional_text_edits: None,
-                command: None,
-                commit_characters: None,
-                data: None,
-                tags: None,
-            });
-        } else if let qi_compiler::parser::AstNode::异步函数声明(async_func_decl) = statement {
-            let params = async_func_decl.parameters
-                .iter()
-                .map(|p| format!("{}: {}", p.name,
-                    p.type_annotation.as_ref()
-                        .map(|t| format_type_annotation(t))
-                        .unwrap_or_else(|| "_".to_string())))
-                .collect::<Vec<_>>()
-                .join(", ");
-
-            let return_type = async_func_decl.return_type.as_ref()
-                .map(|t| format!(" -> {}", format_type_annotation(t)))
-                .unwrap_or_default();
-
-            completions.push(CompletionItem {
-                label: async_func_decl.name.clone(),
-                kind: Some(CompletionItemKind::FUNCTION),
-                detail: Some(format!("异步函数{}{}", params, return_type)),
-                documentation: None,
-                deprecated: Some(false),
-                preselect: Some(false),
-                sort_text: Some(format!("async{}", async_func_decl.name)),
-                filter_text: Some(async_func_decl.name.clone()),
-                insert_text: Some(async_func_decl.name.clone()),
                 insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
                 insert_text_mode: None,
             label_details: None,

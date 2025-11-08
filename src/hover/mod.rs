@@ -293,27 +293,7 @@ fn resolve_symbol_in_statement(
                 });
             }
         }
-        AstNode::异步函数声明(async_func_decl) => {
-            if async_func_decl.name == symbol_name {
-                let parameters = async_func_decl.parameters
-                    .iter()
-                    .map(|p| format!("{}: {}", p.name,
-                        p.type_annotation.as_ref()
-                            .map(|t| format_type_annotation(t))
-                            .unwrap_or_else(|| "_".to_string())))
-                    .collect();
-                let return_type = async_func_decl.return_type.as_ref()
-                    .map(|t| format_type_annotation(t));
-
-                return Some(SymbolInfo {
-                    name: async_func_decl.name.clone(),
-                    symbol_type: SymbolType::Function { parameters, return_type },
-                    description: format!("异步函数: {}", async_func_decl.name),
-                    documentation: Some("异步函数声明".to_string()),
-                    span: async_func_decl.span,
-                });
-            }
-        }
+        // Async functions are now handled by 函数声明 with is_async flag
         AstNode::结构体声明(struct_decl) => {
             if struct_decl.name == symbol_name {
                 let fields = struct_decl.fields

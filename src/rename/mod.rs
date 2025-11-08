@@ -251,7 +251,6 @@ fn symbol_node_contains_name(node: &qi_compiler::parser::AstNode, name: &str) ->
 
     match node {
         AstNode::函数声明(func_decl) => func_decl.name == name,
-        AstNode::异步函数声明(async_func_decl) => async_func_decl.name == name,
         AstNode::结构体声明(struct_decl) => struct_decl.name == name,
         AstNode::枚举声明(enum_decl) => enum_decl.name == name,
         AstNode::变量声明(var_decl) => var_decl.name == name,
@@ -276,9 +275,6 @@ fn symbol_node_contains_name(node: &qi_compiler::parser::AstNode, name: &str) ->
         }
         AstNode::函数声明(func_decl) => {
             func_decl.body.iter().any(|stmt| symbol_node_contains_name(stmt, name))
-        }
-        AstNode::异步函数声明(async_func_decl) => {
-            async_func_decl.body.iter().any(|stmt| symbol_node_contains_name(stmt, name))
         }
         AstNode::方法声明(method_decl) => {
             method_decl.body.iter().any(|stmt| symbol_node_contains_name(stmt, name))
@@ -427,14 +423,8 @@ fn find_references_in_ast(
             }
         }
         AstNode::函数声明(func_decl) => {
-            // Search in function body
+            // Search in function body (handles both regular and async functions)
             for stmt in &func_decl.body {
-                find_references_in_ast(symbol, uri, stmt, references, document_manager);
-            }
-        }
-        AstNode::异步函数声明(async_func_decl) => {
-            // Search in async function body
-            for stmt in &async_func_decl.body {
                 find_references_in_ast(symbol, uri, stmt, references, document_manager);
             }
         }

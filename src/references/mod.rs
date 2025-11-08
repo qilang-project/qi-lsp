@@ -250,14 +250,8 @@ fn find_references_in_ast(
             }
         }
         AstNode::函数声明(func_decl) => {
-            // Search in function body
+            // Search in function body (handles both regular and async functions)
             for stmt in &func_decl.body {
-                find_references_in_ast(symbol, uri, stmt, references, document_manager);
-            }
-        }
-        AstNode::异步函数声明(async_func_decl) => {
-            // Search in async function body
-            for stmt in &async_func_decl.body {
                 find_references_in_ast(symbol, uri, stmt, references, document_manager);
             }
         }
@@ -289,6 +283,12 @@ fn find_references_in_ast(
             for element in &array_literal.elements {
                 find_references_in_ast(symbol, uri, element, references, document_manager);
             }
+        }
+        AstNode::取地址表达式(address_of_expr) => {
+            find_references_in_ast(symbol, uri, &address_of_expr.expression, references, document_manager);
+        }
+        AstNode::解引用表达式(dereference_expr) => {
+            find_references_in_ast(symbol, uri, &dereference_expr.expression, references, document_manager);
         }
         // Add other node types as needed
         _ => {}

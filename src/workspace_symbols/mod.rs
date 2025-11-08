@@ -125,18 +125,7 @@ fn extract_symbols_from_statement(
                 ));
             }
         }
-        AstNode::异步函数声明(async_func_decl) => {
-            if matches_query(&async_func_decl.name, query) {
-                symbols.push(create_workspace_symbol(
-                    &async_func_decl.name,
-                    SymbolKind::FUNCTION,
-                    uri,
-                    &async_func_decl.span,
-                    Some(format!("异步函数 {}({})", async_func_decl.name, format_parameters(&async_func_decl.parameters))),
-                    document_manager,
-                ));
-            }
-        }
+        // Async functions are now handled by 函数声明 with is_async flag
         AstNode::变量声明(var_decl) => {
             if matches_query(&var_decl.name, query) {
                 let kind = if var_decl.is_mutable { SymbolKind::VARIABLE } else { SymbolKind::CONSTANT };

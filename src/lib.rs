@@ -18,6 +18,7 @@ pub mod formatting;
 pub mod workspace_symbols;
 pub mod document_symbols;
 pub mod rename;
+pub mod build;
 
 use anyhow::Result;
 use log::{debug, info, warn, error};
@@ -227,6 +228,9 @@ impl QiLanguageServer {
             "textDocument/rename" => {
                 self.handle_rename_request(request).await?;
             }
+            "qi/build" => {
+                self.handle_build_request(request).await?;
+            }
             "shutdown" => {
                 debug!("Received shutdown request");
                 // Send empty response to acknowledge shutdown
@@ -325,6 +329,26 @@ impl QiLanguageServer {
     async fn handle_rename_request(&self, request: Request) -> Result<()> {
         let documents = self.documents.read().await;
         rename::handle_rename(&self.connection, request, &*documents).await
+    }
+
+    async fn handle_build_request(&self, request: Request) -> Result<()> {
+        debug!("Handling build request");
+
+        let params: build::BuildParams = serde_json::from_value(request.params)?;
+
+        // Execute build
+        let result = build::build_file(&params.uri, &params.mode)?;
+
+        let response = Response {
+            id: request.id,
+            result: Some(serde_json::to_value(result)?),
+            error: None,
+        };
+
+        self.connection.sender.send(Message::Response(response))?;
+        debug!("Sent build response");
+
+        Ok(())
     }
 
     // Notification handlers

@@ -70,7 +70,7 @@ enum SymbolType {
 impl<'a> SemanticAnalyzer<'a> {
     /// Create a new semantic analyzer
     fn new(uri: &'a str, document_manager: &'a DocumentManager) -> Self {
-        Self {
+        let mut analyzer = Self {
             uri,
             document_manager,
             diagnostics: Vec::new(),
@@ -80,6 +80,115 @@ impl<'a> SemanticAnalyzer<'a> {
             used_variables: HashMap::new(),
             declared_variables: HashMap::new(),
             current_file: uri.to_string(),
+        };
+
+        // 初始化内置函数和类型
+        analyzer.initialize_builtins();
+        analyzer
+    }
+
+    /// Initialize built-in functions and types
+    fn initialize_builtins(&mut self) {
+        use qi_compiler::lexer::Span;
+
+        // 创建一个假的 span 用于内置函数
+        let dummy_span = Span { start: 0, end: 0 };
+
+        // 输入输出函数
+        let builtin_functions = vec![
+            ("打印", "void", "打印内容到控制台"),
+            ("打印行", "void", "打印内容到控制台并换行"),
+            ("读取", "string", "从标准输入读取一行"),
+            ("读取整数", "int", "从标准输入读取整数"),
+            ("读取浮点数", "float", "从标准输入读取浮点数"),
+        ];
+
+        for (name, return_type, _description) in builtin_functions {
+            self.symbol_table.insert(
+                name.to_string(),
+                SymbolInfo {
+                    name: name.to_string(),
+                    symbol_type: SymbolType::Function {
+                        parameters: vec![],
+                        return_type: Some(return_type.to_string()),
+                    },
+                    span: dummy_span.clone(),
+                    scope_depth: 0,
+                    is_used: false,
+                },
+            );
+        }
+
+        // 内置类型
+        let builtin_types = vec![
+            "整数", "长整数", "短整数", "字节",
+            "浮点数", "双精度", "布尔", "字符", "字符串",
+            "空", "数组", "字典", "列表", "集合", "指针", "引用"
+        ];
+
+        for type_name in builtin_types {
+            self.symbol_table.insert(
+                type_name.to_string(),
+                SymbolInfo {
+                    name: type_name.to_string(),
+                    symbol_type: SymbolType::Type,
+                    span: dummy_span.clone(),
+                    scope_depth: 0,
+                    is_used: false,
+                },
+            );
+        }
+
+        // 数学函数
+        let math_functions = vec![
+            ("绝对值", "int", "计算绝对值"),
+            ("最大值", "int", "返回最大值"),
+            ("最小值", "int", "返回最小值"),
+            ("平方根", "float", "计算平方根"),
+            ("幂", "float", "计算幂运算"),
+            ("取整", "int", "向下取整"),
+            ("四舍五入", "int", "四舍五入"),
+        ];
+
+        for (name, return_type, _description) in math_functions {
+            self.symbol_table.insert(
+                name.to_string(),
+                SymbolInfo {
+                    name: name.to_string(),
+                    symbol_type: SymbolType::Function {
+                        parameters: vec![],
+                        return_type: Some(return_type.to_string()),
+                    },
+                    span: dummy_span.clone(),
+                    scope_depth: 0,
+                    is_used: false,
+                },
+            );
+        }
+
+        // 集合函数
+        let collection_functions = vec![
+            ("长度", "int", "获取集合长度"),
+            ("添加", "void", "向集合添加元素"),
+            ("移除", "bool", "从集合移除元素"),
+            ("包含", "bool", "检查是否包含元素"),
+            ("清空", "void", "清空集合"),
+        ];
+
+        for (name, return_type, _description) in collection_functions {
+            self.symbol_table.insert(
+                name.to_string(),
+                SymbolInfo {
+                    name: name.to_string(),
+                    symbol_type: SymbolType::Function {
+                        parameters: vec![],
+                        return_type: Some(return_type.to_string()),
+                    },
+                    span: dummy_span.clone(),
+                    scope_depth: 0,
+                    is_used: false,
+                },
+            );
         }
     }
 
@@ -147,8 +256,8 @@ impl<'a> SemanticAnalyzer<'a> {
             AstNode::函数声明(func_decl) => {
                 self.analyze_function_declaration(func_decl);
             }
-            AstNode::异步函数声明(async_func_decl) => {
-                self.analyze_async_function_declaration(async_func_decl);
+            AstNode::取地址表达式(_) | AstNode::解引用表达式(_) => {
+                // Pointer operations - analyzed as expressions
             }
             AstNode::结构体声明(struct_decl) => {
                 self.analyze_struct_declaration(struct_decl);
@@ -241,55 +350,8 @@ impl<'a> SemanticAnalyzer<'a> {
         self.function_stack.pop();
     }
 
-    /// Analyze async function declaration
-    fn analyze_async_function_declaration(&mut self, async_func_decl: &qi_compiler::parser::ast::AsyncFunctionDeclaration) {
-        // Similar to function declaration but marked as async
-        if let Some(_existing) = self.symbol_table.get(&async_func_decl.name) {
-            self.add_diagnostic(
-                &format!("异步函数 '{}' 已定义", async_func_decl.name),
-                &async_func_decl.span,
-                DiagnosticSeverity::ERROR,
-                "duplicate-function",
-            );
-        }
-
-        self.symbol_table.insert(
-            async_func_decl.name.clone(),
-            SymbolInfo {
-                name: async_func_decl.name.clone(),
-                symbol_type: SymbolType::Function {
-                    parameters: async_func_decl.parameters.iter().map(|p| p.name.clone()).collect(),
-                    return_type: async_func_decl.return_type.as_ref().map(|t| format!("{:?}", t)),
-                },
-                span: async_func_decl.span.clone(),
-                scope_depth: self.scope_depth,
-                is_used: false,
-            },
-        );
-
-        self.function_stack.push(async_func_decl.name.clone());
-        self.scope_depth += 1;
-
-        for param in &async_func_decl.parameters {
-            self.symbol_table.insert(
-                param.name.clone(),
-                SymbolInfo {
-                    name: param.name.clone(),
-                    symbol_type: SymbolType::Parameter,
-                    span: param.span.clone(),
-                    scope_depth: self.scope_depth,
-                    is_used: false,
-                },
-            );
-        }
-
-        for stmt in &async_func_decl.body {
-            self.analyze_statement(stmt);
-        }
-
-        self.scope_depth -= 1;
-        self.function_stack.pop();
-    }
+    /// Note: Async functions are now handled by analyze_function_declaration
+    /// with the is_async flag in FunctionDeclaration
 
     /// Analyze struct declaration
     fn analyze_struct_declaration(&mut self, struct_decl: &qi_compiler::parser::ast::StructDeclaration) {

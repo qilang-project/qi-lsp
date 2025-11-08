@@ -76,19 +76,7 @@ fn find_symbols_in_ast(
             };
             symbols.push(symbol);
         }
-        AstNode::异步函数声明(async_func_decl) => {
-            let symbol = DocumentSymbol {
-                name: async_func_decl.name.clone(),
-                kind: SymbolKind::FUNCTION,
-                tags: None,
-                detail: Some(format_async_function_signature(async_func_decl)),
-                selection_range: span_to_range(&async_func_decl.span, uri, document_manager),
-                range: span_to_range(&async_func_decl.span, uri, document_manager),
-                children: Some(find_async_function_symbols(async_func_decl, uri, document_manager)),
-                deprecated: None,
-            };
-            symbols.push(symbol);
-        }
+        // Async functions are now handled by 函数声明 with is_async flag
         AstNode::方法声明(method_decl) => {
             let symbol = DocumentSymbol {
                 name: method_decl.method_name.clone(),
@@ -187,36 +175,8 @@ fn find_function_symbols(
     symbols
 }
 
-/// Find symbols in async function body
-fn find_async_function_symbols(
-    async_func_decl: &qi_compiler::parser::ast::AsyncFunctionDeclaration,
-    uri: &str,
-    document_manager: &DocumentManager,
-) -> Vec<DocumentSymbol> {
-    let mut symbols = Vec::new();
-
-    // Add parameters as symbols
-    for param in &async_func_decl.parameters {
-        let symbol = DocumentSymbol {
-            name: param.name.clone(),
-            kind: SymbolKind::VARIABLE,
-            tags: None,
-            detail: Some(format!("{:?}", param.type_annotation)),
-            selection_range: span_to_range(&param.span, uri, document_manager),
-            range: span_to_range(&param.span, uri, document_manager),
-            children: None,
-            deprecated: None,
-        };
-        symbols.push(symbol);
-    }
-
-    // Find local symbols in function body
-    for stmt in &async_func_decl.body {
-        find_local_symbols_in_statement(stmt, uri, &mut symbols, document_manager);
-    }
-
-    symbols
-}
+// Async function symbols are now handled by find_function_symbols
+// since AsyncFunctionDeclaration was merged into FunctionDeclaration with is_async flag
 
 /// Find symbols in method body
 fn find_method_symbols(
@@ -423,19 +383,8 @@ fn format_function_signature(func_decl: &qi_compiler::parser::ast::FunctionDecla
     format!("函数 {}({}){}", func_decl.name, params.join(", "), return_type)
 }
 
-/// Format async function signature
-fn format_async_function_signature(async_func_decl: &qi_compiler::parser::ast::AsyncFunctionDeclaration) -> String {
-    let params: Vec<String> = async_func_decl.parameters
-        .iter()
-        .map(|p| format!("{}: {:?}", p.name, p.type_annotation))
-        .collect();
-
-    let return_type = async_func_decl.return_type.as_ref()
-        .map(|t| format!(": {:?}", t))
-        .unwrap_or_default();
-
-    format!("异步函数 {}({}){}", async_func_decl.name, params.join(", "), return_type)
-}
+// Removed: format_async_function_signature - async functions now use format_function_signature
+// with is_async flag in FunctionDeclaration
 
 /// Format method signature
 fn format_method_signature(method_decl: &qi_compiler::parser::ast::MethodDeclaration) -> String {

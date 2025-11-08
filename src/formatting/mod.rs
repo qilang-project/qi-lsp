@@ -68,13 +68,30 @@ pub async fn handle_formatting(
 
 /// Format Qi source code according to style conventions
 fn format_qi_code(content: &str, options: &FormattingOptions) -> String {
-    debug!("Formatting Qi code with {} spaces per indent", options.tab_size);
+    debug!("Formatting Qi code using qi_compiler formatter");
 
-    let mut formatter = QiFormatter::new(options);
-    formatter.format(content)
+    // Use the official Qi compiler formatter instead of duplicating logic
+    let mut config = qi_compiler::formatter::FormatConfig::default();
+    config.indent_size = options.tab_size as usize;
+    config.use_tabs = !options.insert_spaces;
+
+    let formatter = qi_compiler::formatter::Formatter::with_config(config);
+
+    match formatter.format_file(content) {
+        Ok(formatted) => {
+            debug!("Formatting successful");
+            formatted
+        }
+        Err(e) => {
+            warn!("Formatting failed: {}, returning original content", e);
+            content.to_string()
+        }
+    }
 }
 
-/// Qi code formatter
+/// Qi code formatter (DEPRECATED - using qi_compiler::formatter instead)
+/// All code below is kept for reference but no longer used
+#[allow(dead_code)]
 struct QiFormatter {
     /// Formatting options
     options: FormattingOptions,
