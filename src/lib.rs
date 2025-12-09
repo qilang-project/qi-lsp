@@ -34,6 +34,7 @@ use document::DocumentManager;
 use diagnostics::DiagnosticsManager;
 
 /// Main language server implementation
+#[allow(dead_code)]
 pub struct QiLanguageServer {
     /// Connection to the client
     connection: Connection,
@@ -76,7 +77,10 @@ impl QiLanguageServer {
 
         // Handle initialization
         let initialize_params = self.handle_initialize().await?;
-        self.config.root_uri = initialize_params.root_uri.as_ref().map(|uri| uri.to_string());
+        #[allow(deprecated)]
+        {
+            self.config.root_uri = initialize_params.root_uri.as_ref().map(|uri| uri.to_string());
+        }
         self.config.client_capabilities = Some(initialize_params.clone());
 
         // Send initialized notification

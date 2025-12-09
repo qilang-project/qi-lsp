@@ -3,6 +3,8 @@
 //! This module provides functionality for generating and publishing
 //! diagnostics (errors, warnings, hints) for Qi source code.
 
+#![allow(dead_code)]
+
 use anyhow::Result;
 use log::{debug, warn};
 use lsp_server::{Connection, Message};
@@ -98,7 +100,7 @@ pub async fn update_diagnostics(
 /// Convert a parse error to an LSP diagnostic
 fn convert_parse_error_to_diagnostic(
     parse_error: &ParseError,
-    content: &str,
+    _content: &str,
 ) -> Option<Diagnostic> {
     // For now, we'll create a simple diagnostic at the beginning of the document
     // In a more sophisticated implementation, we'd extract span information from the error

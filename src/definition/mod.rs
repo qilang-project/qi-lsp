@@ -3,6 +3,8 @@
 //! This module provides "go to definition" functionality, allowing
 //! users to navigate to the definition of symbols in their code.
 
+#![allow(dead_code)]
+
 use anyhow::Result;
 use log::debug;
 use lsp_server::{Connection, Message, Request, Response};
@@ -191,7 +193,6 @@ fn get_method_call_info(
         if ch_before_method == '.' {
             // Found a dot, now find the object name
             let mut object_start = method_start - 1; // Start from the dot
-            let mut object_end = method_start - 1;
 
             // Skip the dot
             if object_start > 0 {
@@ -209,7 +210,7 @@ fn get_method_call_info(
                 object_start -= 1;
             }
 
-            object_end = object_start + 1;
+            let object_end = object_start + 1;
 
             // Find object name boundaries
             while object_start > 0 {
@@ -303,7 +304,7 @@ fn path_to_uri(path: &std::path::Path) -> Option<String> {
 fn find_imported_package_location(
     module_path: &[String],
     current_uri: &str,
-    document_manager: &DocumentManager,
+    _document_manager: &DocumentManager,
 ) -> Option<Location> {
     use std::path::Path;
 
@@ -340,8 +341,6 @@ fn find_imported_package_location(
 /// Resolve module path to possible file paths
 /// Follows the same resolution order as the Qi compiler
 fn resolve_module_path(module_path: &[String], current_dir: &std::path::Path) -> Vec<std::path::PathBuf> {
-    use std::path::PathBuf;
-
     let mut possible_paths = Vec::new();
 
     if module_path.is_empty() {
@@ -662,7 +661,7 @@ fn span_to_range(
 pub fn find_references(
     symbol: &str,
     uri: &str,
-    position: Position,
+    _position: Position,
     document_manager: &DocumentManager,
 ) -> Vec<Location> {
     let mut references = Vec::new();

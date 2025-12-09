@@ -147,7 +147,7 @@ async fn main() {
     };
     let new_name4 = "函数"; // 关键字
 
-    if let Some(workspace_edit) = rename::perform_rename(
+    if let Some(_workspace_edit) = rename::perform_rename(
         uri,
         position4,
         new_name4,

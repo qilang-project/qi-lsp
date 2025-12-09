@@ -357,7 +357,7 @@ fn format_type_annotation(type_annotation: &qi_compiler::parser::TypeNode) -> St
 /// Convert span to range
 fn span_to_range(
     span: &qi_compiler::lexer::tokens::Span,
-    document_manager: &DocumentManager,
+    _document_manager: &DocumentManager,
 ) -> Option<Range> {
     // This is a simplified implementation
     // In a real implementation, you'd need to properly convert byte offsets to line/column

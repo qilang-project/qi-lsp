@@ -3,6 +3,8 @@
 //! This module provides code formatting capabilities for Qi source code,
 //! ensuring consistent style and formatting according to defined conventions.
 
+#![allow(dead_code)]
+
 use anyhow::Result;
 use log::{debug, warn};
 use lsp_server::{Connection, Message, Request, Response};
@@ -68,14 +70,14 @@ pub async fn handle_formatting(
 
 /// Format Qi source code according to style conventions
 fn format_qi_code(content: &str, options: &FormattingOptions) -> String {
-    debug!("Formatting Qi code using qi_compiler formatter");
+    debug!("Formatting Qi code using qi_tools formatter");
 
-    // Use the official Qi compiler formatter instead of duplicating logic
-    let mut config = qi_compiler::formatter::FormatConfig::default();
+    // Use the official Qi tools formatter instead of duplicating logic
+    let mut config = qi_tools::formatter::FormatConfig::default();
     config.indent_size = options.tab_size as usize;
     config.use_tabs = !options.insert_spaces;
 
-    let formatter = qi_compiler::formatter::Formatter::with_config(config);
+    let formatter = qi_tools::formatter::Formatter::with_config(config);
 
     match formatter.format_file(content) {
         Ok(formatted) => {

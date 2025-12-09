@@ -235,8 +235,6 @@ fn is_rename_safe(
 
 /// Check if AST contains a symbol that conflicts with the new name
 fn has_symbol_conflict(ast: &qi_compiler::parser::Program, new_name: &str) -> bool {
-    use qi_compiler::parser::AstNode;
-
     for statement in &ast.statements {
         if symbol_node_contains_name(statement, new_name) {
             return true;
@@ -250,11 +248,17 @@ fn has_symbol_conflict(ast: &qi_compiler::parser::Program, new_name: &str) -> bo
 fn symbol_node_contains_name(node: &qi_compiler::parser::AstNode, name: &str) -> bool {
 
     match node {
-        AstNode::函数声明(func_decl) => func_decl.name == name,
+        AstNode::函数声明(func_decl) => {
+            func_decl.name == name ||
+            func_decl.body.iter().any(|stmt| symbol_node_contains_name(stmt, name))
+        }
         AstNode::结构体声明(struct_decl) => struct_decl.name == name,
         AstNode::枚举声明(enum_decl) => enum_decl.name == name,
         AstNode::变量声明(var_decl) => var_decl.name == name,
-        AstNode::方法声明(method_decl) => method_decl.method_name == name,
+        AstNode::方法声明(method_decl) => {
+            method_decl.method_name == name ||
+            method_decl.body.iter().any(|stmt| symbol_node_contains_name(stmt, name))
+        }
 
         // Recursively check nested nodes
         AstNode::块语句(block_stmt) => {
@@ -272,12 +276,6 @@ fn symbol_node_contains_name(node: &qi_compiler::parser::AstNode, name: &str) ->
         }
         AstNode::循环语句(loop_stmt) => {
             loop_stmt.body.iter().any(|stmt| symbol_node_contains_name(stmt, name))
-        }
-        AstNode::函数声明(func_decl) => {
-            func_decl.body.iter().any(|stmt| symbol_node_contains_name(stmt, name))
-        }
-        AstNode::方法声明(method_decl) => {
-            method_decl.body.iter().any(|stmt| symbol_node_contains_name(stmt, name))
         }
         _ => false,
     }

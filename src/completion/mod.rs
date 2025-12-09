@@ -3,6 +3,8 @@
 //! This module provides intelligent code completion suggestions
 //! for Qi source code, including keywords, functions, variables, and more.
 
+#![allow(dead_code)]
+
 use anyhow::Result;
 use log::debug;
 use lsp_server::{Connection, Message, Request, Response};
@@ -238,9 +240,9 @@ enum CompletionContext {
 /// Analyze the completion context from the code before cursor
 fn analyze_completion_context(
     before_cursor: &str,
-    uri: &str,
-    position: Position,
-    document_manager: &DocumentManager,
+    _uri: &str,
+    _position: Position,
+    _document_manager: &DocumentManager,
 ) -> CompletionContext {
     // Trim whitespace
     let trimmed = before_cursor.trim_end();

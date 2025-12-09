@@ -3,6 +3,8 @@
 //! This module provides hover information for Qi source code,
 //! showing type information, documentation, and other useful details.
 
+#![allow(dead_code)]
+
 use anyhow::Result;
 use log::debug;
 use lsp_server::{Connection, Message, Request, Response};

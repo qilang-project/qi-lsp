@@ -3,6 +3,8 @@
 //! This module provides document symbol information, allowing
 //! users to navigate to symbols within the current document.
 
+#![allow(deprecated)]
+
 use anyhow::Result;
 use log::debug;
 use lsp_server::{Connection, Message, Request, Response};

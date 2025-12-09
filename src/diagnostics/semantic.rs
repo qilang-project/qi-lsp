@@ -591,7 +591,7 @@ impl<'a> SemanticAnalyzer<'a> {
             );
         } else {
             // Mark as used
-            if let Some(mut symbol) = self.symbol_table.get_mut(&ident_expr.name) {
+            if let Some(symbol) = self.symbol_table.get_mut(&ident_expr.name) {
                 symbol.is_used = true;
             }
 
