@@ -10,7 +10,7 @@ use log::debug;
 use lsp_server::{Connection, Message, Request, Response};
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse,
-    InsertTextFormat, Position, Range, TextEdit,
+    InsertTextFormat, Position,
 };
 
 use crate::document::DocumentManager;
@@ -70,21 +70,21 @@ fn get_keyword_completions() -> Vec<CompletionItem> {
         ("如果", "if", "如果 ${1:condition} {\n    ${2:// 条件为真时执行}\n} 否则 {\n    ${3:// 条件为假时执行}\n}"),
         ("否则", "else", "否则 {\n    ${1:// else 分支内容}\n}"),
         ("当", "while", "当 ${1:condition} {\n    ${2:// 循环体内容}\n}"),
-        ("对于", "for", "对于 ${1:item} 在 ${2:collection} {\n    ${3:// 处理每个元素}\n}"),
-        ("循环", "loop", "循环 {\n    ${1:// 循环体}\n    ${2:如果 ${3:break_condition} {\n        跳出循环;\n    }\n}"),
+        ("对于", "for", "对于 ${1:item} 在 ${2:collection} 中 {\n    ${3:// 处理每个元素}\n}"),
+        ("循环", "loop", "循环 {\n    ${1:// 循环体}\n    如果 ${2:break_condition} {\n        跳出;\n    }\n}"),
         ("返回", "return", "返回 ${1:value};"),
-        ("结构体", "struct", "结构体 ${1:Name} {\n    ${2:field}: ${3:Type},\n};"),
-        ("枚举", "enum", "枚举 ${1:Name} {\n    ${2:Variant},\n};"),
+        ("类型", "struct", "类型 ${1:Name} {\n    ${2:字段}: ${3:类型};\n}"),
+        ("枚举", "enum", "枚举 ${1:Name} {\n    ${2:变体},\n}"),
         ("公开", "public", "公开"),
         ("私有", "private", "私有"),
-        ("可变", "mutable", "可变"),
-        ("不可变", "immutable", "不可变"),
-        ("匹配", "match", "匹配 ${1:value} {\n    ${2:pattern} => ${3:result},\n};"),
-        ("导入", "import", "导入 ${1:module};"),
-        ("打印", "print", "打印(\"${1:message}\");"),
+        ("导入", "import", "导入 标准库.${1:模块名};"),
+        ("打印行", "println", "打印行(${1:\"内容\"});"),
+        ("打印", "print", "打印(${1:\"内容\"});"),
         ("等待", "await", "等待 ${1:async_call};"),
         ("取地址", "address-of", "取地址 ${1:variable}"),
         ("解引用", "dereference", "解引用 ${1:pointer}"),
+        ("启动", "spawn goroutine", "启动 ${1:函数名}();"),
+        ("选择", "match/select", "选择 ${1:value} {\n    情况 ${2:pattern} => ${3:result},\n    情况 _ => ${4:default},\n}"),
     ];
 
     keywords
@@ -103,13 +103,7 @@ fn get_keyword_completions() -> Vec<CompletionItem> {
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             insert_text_mode: Some(lsp_types::InsertTextMode::ADJUST_INDENTATION),
             label_details: None,
-            text_edit: Some(lsp_types::CompletionTextEdit::Edit(TextEdit::new(
-                Range {
-                    start: Position { line: 0, character: 0 },
-                    end: Position { line: 0, character: 0 },
-                },
-                insert_text.to_string(),
-            ))),
+            text_edit: None,
             additional_text_edits: None,
             command: None,
             commit_characters: None,
@@ -278,10 +272,10 @@ fn extract_struct_name_before_dot(text: &str) -> Option<String> {
     }
 
     // Find the last identifier before the dot
-    let mut chars = trimmed.chars().rev();
+    let chars = trimmed.chars().rev();
     let mut identifier = String::new();
 
-    while let Some(ch) = chars.next() {
+    for ch in chars {
         if ch.is_whitespace() || ch == '=' || ch == '(' || ch == ')' || ch == '{' || ch == '}' {
             break;
         }
@@ -317,7 +311,7 @@ fn get_function_completions(ast: &qi_compiler::parser::Program) -> Vec<Completio
                 .iter()
                 .map(|p| format!("{}: {}", p.name,
                     p.type_annotation.as_ref()
-                        .map(|t| format_type_annotation(t))
+                        .map(format_type_annotation)
                         .unwrap_or_else(|| "_".to_string())))
                 .collect::<Vec<_>>()
                 .join(", ");

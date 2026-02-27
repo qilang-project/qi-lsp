@@ -103,7 +103,7 @@ pub fn perform_rename(
 
         changes_by_document
             .entry(doc_uri)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(text_edit);
     }
 
@@ -171,7 +171,7 @@ fn is_valid_identifier(name: &str) -> bool {
     // Check if name starts with a valid character
     if let Some(first_char) = name.chars().next() {
         let char_code = first_char as u32;
-        if !first_char.is_alphabetic() && first_char != '_' && (char_code < 0x4E00 || char_code > 0x9FFF) {
+        if !first_char.is_alphabetic() && first_char != '_' && !(0x4E00..=0x9FFF).contains(&char_code) {
             return false;
         }
     }
@@ -266,7 +266,7 @@ fn symbol_node_contains_name(node: &qi_compiler::parser::AstNode, name: &str) ->
         }
         AstNode::如果语句(if_stmt) => {
             if_stmt.then_branch.iter().any(|stmt| symbol_node_contains_name(stmt, name)) ||
-            if_stmt.else_branch.as_ref().map_or(false, |stmt| symbol_node_contains_name(stmt, name))
+            if_stmt.else_branch.as_ref().is_some_and(|stmt| symbol_node_contains_name(stmt, name))
         }
         AstNode::当语句(while_stmt) => {
             while_stmt.body.iter().any(|stmt| symbol_node_contains_name(stmt, name))

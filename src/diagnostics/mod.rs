@@ -102,19 +102,39 @@ fn convert_parse_error_to_diagnostic(
     parse_error: &ParseError,
     _content: &str,
 ) -> Option<Diagnostic> {
-    // For now, we'll create a simple diagnostic at the beginning of the document
-    // In a more sophisticated implementation, we'd extract span information from the error
-
-    let message = match parse_error {
-        ParseError::ParseFailed => "解析失败：语法错误".to_string(),
-        // Add more specific error messages as needed
-        _ => format!("解析错误: {:?}", parse_error),
+    // Extract line and column numbers from the error (1-based → 0-based conversion)
+    let (line, col, message) = match parse_error {
+        ParseError::UnexpectedToken(token_kind, line, col) => {
+            (*line as u32, *col as u32, format!("意外的标记: {:?}", token_kind))
+        }
+        ParseError::ExpectedToken(expected, found, line, col) => {
+            (*line as u32, *col as u32, format!("期望 {:?} 但找到 {:?}", expected, found))
+        }
+        ParseError::InvalidSyntax(msg, line, col) => {
+            (*line as u32, *col as u32, format!("语法错误: {}", msg))
+        }
+        ParseError::UnterminatedExpression(line, col) => {
+            (*line as u32, *col as u32, "未终止的表达式".to_string())
+        }
+        ParseError::InvalidFunctionDeclaration(line, col) => {
+            (*line as u32, *col as u32, "无效的函数声明".to_string())
+        }
+        ParseError::InvalidVariableDeclaration(line, col) => {
+            (*line as u32, *col as u32, "无效的变量声明".to_string())
+        }
+        ParseError::UnexpectedEof => (0, 0, "意外的文件结束".to_string()),
+        ParseError::General(msg) => (0, 0, format!("解析错误: {}", msg)),
+        ParseError::ParseFailed => (0, 0, "解析失败：语法错误".to_string()),
     };
+
+    // Convert from 1-based to 0-based, and clamp to avoid underflow
+    let line_0 = line.saturating_sub(1);
+    let col_0 = col.saturating_sub(1);
 
     let diagnostic = Diagnostic {
         range: Range {
-            start: Position { line: 0, character: 0 },
-            end: Position { line: 0, character: 1 },
+            start: Position { line: line_0, character: col_0 },
+            end: Position { line: line_0, character: col_0 + 1 },
         },
         severity: Some(DiagnosticSeverity::ERROR),
         code: Some(NumberOrString::String("parse-error".to_string())),

@@ -130,7 +130,7 @@ fn extract_symbols_from_statement(
             if matches_query(&var_decl.name, query) {
                 let kind = if var_decl.is_mutable { SymbolKind::VARIABLE } else { SymbolKind::CONSTANT };
                 let type_info = var_decl.type_annotation.as_ref()
-                    .map(|t| format_type_annotation(t))
+                    .map(format_type_annotation)
                     .unwrap_or_else(|| "自动推断".to_string());
 
                 symbols.push(create_workspace_symbol(
@@ -278,7 +278,7 @@ fn create_workspace_symbol(
 ) -> WorkspaceSymbol {
     let location = Location {
         uri: uri.parse::<lsp_types::Uri>().unwrap_or_else(|_| "file://unknown".parse::<lsp_types::Uri>().unwrap()),
-        range: span_to_range(span, document_manager).unwrap_or_else(|| Range {
+        range: span_to_range(span, document_manager).unwrap_or(Range {
             start: Position { line: 0, character: 0 },
             end: Position { line: 0, character: 1 },
         }),
@@ -304,7 +304,7 @@ fn format_parameters(parameters: &[qi_compiler::parser::Parameter]) -> String {
         .iter()
         .map(|param| {
             let type_info = param.type_annotation.as_ref()
-                .map(|t| format_type_annotation(t))
+                .map(format_type_annotation)
                 .unwrap_or_else(|| "_".to_string());
             format!("{}: {}", param.name, type_info)
         })
@@ -344,7 +344,7 @@ fn format_type_annotation(type_annotation: &qi_compiler::parser::TypeNode) -> St
         TypeNode::函数类型(func_type) => {
             let params = func_type.parameters
                 .iter()
-                .map(|t| format_type_annotation(t))
+                .map(format_type_annotation)
                 .collect::<Vec<_>>()
                 .join(", ");
             let ret = format_type_annotation(&func_type.return_type);

@@ -270,7 +270,7 @@ impl QiFormatter {
 
     /// Parse a line comment
     fn parse_line_comment(&mut self, chars: &mut std::iter::Peekable<std::str::Chars>, current_token: &mut String) {
-        while let Some(ch) = chars.next() {
+        for ch in chars.by_ref() {
             current_token.push(ch);
             if ch == '\n' {
                 break;
@@ -360,7 +360,7 @@ impl QiFormatter {
 
     /// Check if a token is a valid identifier
     fn is_identifier(&self, token: &str) -> bool {
-        !token.is_empty() && (token.chars().next().unwrap().is_alphabetic() || token.chars().next().unwrap() == '_') &&
+        !token.is_empty() && (token.chars().next().unwrap().is_alphabetic() || token.starts_with('_')) &&
         token.chars().all(|ch| ch.is_alphanumeric() || ch == '_' || (ch as u32 >= 0x4E00 && ch as u32 <= 0x9FFF))
     }
 

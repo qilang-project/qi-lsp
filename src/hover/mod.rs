@@ -255,7 +255,7 @@ fn resolve_symbol_in_statement(
         AstNode::变量声明(var_decl) => {
             if var_decl.name == symbol_name {
                 let var_type = var_decl.type_annotation.as_ref()
-                    .map(|t| format_type_annotation(t));
+                    .map(format_type_annotation);
                 let description = if var_decl.is_mutable {
                     format!("可变变量: {}", var_decl.name)
                 } else {
@@ -280,11 +280,11 @@ fn resolve_symbol_in_statement(
                     .iter()
                     .map(|p| format!("{}: {}", p.name,
                         p.type_annotation.as_ref()
-                            .map(|t| format_type_annotation(t))
+                            .map(format_type_annotation)
                             .unwrap_or_else(|| "_".to_string())))
                     .collect();
                 let return_type = func_decl.return_type.as_ref()
-                    .map(|t| format_type_annotation(t));
+                    .map(format_type_annotation);
 
                 return Some(SymbolInfo {
                     name: func_decl.name.clone(),
@@ -334,11 +334,11 @@ fn resolve_symbol_in_statement(
                     .iter()
                     .map(|p| format!("{}: {}", p.name,
                         p.type_annotation.as_ref()
-                            .map(|t| format_type_annotation(t))
+                            .map(format_type_annotation)
                             .unwrap_or_else(|| "_".to_string())))
                     .collect();
                 let return_type = method_decl.return_type.as_ref()
-                    .map(|t| format_type_annotation(t));
+                    .map(format_type_annotation);
 
                 return Some(SymbolInfo {
                     name: method_decl.method_name.clone(),
@@ -519,7 +519,7 @@ fn format_type_annotation(type_annotation: &qi_compiler::parser::TypeNode) -> St
         TypeNode::函数类型(func_type) => {
             let params = func_type.parameters
                 .iter()
-                .map(|t| format_type_annotation(t))
+                .map(format_type_annotation)
                 .collect::<Vec<_>>()
                 .join(", ");
             let ret = format_type_annotation(&func_type.return_type);

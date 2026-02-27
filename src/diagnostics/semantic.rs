@@ -112,7 +112,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         parameters: vec![],
                         return_type: Some(return_type.to_string()),
                     },
-                    span: dummy_span.clone(),
+                    span: dummy_span,
                     scope_depth: 0,
                     is_used: false,
                 },
@@ -132,7 +132,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 SymbolInfo {
                     name: type_name.to_string(),
                     symbol_type: SymbolType::Type,
-                    span: dummy_span.clone(),
+                    span: dummy_span,
                     scope_depth: 0,
                     is_used: false,
                 },
@@ -159,7 +159,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         parameters: vec![],
                         return_type: Some(return_type.to_string()),
                     },
-                    span: dummy_span.clone(),
+                    span: dummy_span,
                     scope_depth: 0,
                     is_used: false,
                 },
@@ -184,7 +184,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         parameters: vec![],
                         return_type: Some(return_type.to_string()),
                     },
-                    span: dummy_span.clone(),
+                    span: dummy_span,
                     scope_depth: 0,
                     is_used: false,
                 },
@@ -241,7 +241,7 @@ impl<'a> SemanticAnalyzer<'a> {
             SymbolInfo {
                 name: import_path_str.clone(),
                 symbol_type: SymbolType::Type,
-                span: import.span.clone(),
+                span: import.span,
                 scope_depth: 0,
                 is_used: false,
             },
@@ -317,7 +317,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     parameters: func_decl.parameters.iter().map(|p| p.name.clone()).collect(),
                     return_type: func_decl.return_type.as_ref().map(|t| format!("{:?}", t)),
                 },
-                span: func_decl.span.clone(),
+                span: func_decl.span,
                 scope_depth: self.scope_depth,
                 is_used: false,
             },
@@ -334,7 +334,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 SymbolInfo {
                     name: param.name.clone(),
                     symbol_type: SymbolType::Parameter,
-                    span: param.span.clone(),
+                    span: param.span,
                     scope_depth: self.scope_depth,
                     is_used: false,
                 },
@@ -371,7 +371,7 @@ impl<'a> SemanticAnalyzer<'a> {
             SymbolInfo {
                 name: struct_decl.name.clone(),
                 symbol_type: SymbolType::Struct { fields: field_names },
-                span: struct_decl.span.clone(),
+                span: struct_decl.span,
                 scope_depth: self.scope_depth,
                 is_used: false,
             },
@@ -401,7 +401,7 @@ impl<'a> SemanticAnalyzer<'a> {
             SymbolInfo {
                 name: enum_decl.name.clone(),
                 symbol_type: SymbolType::Enum { variants: variant_names },
-                span: enum_decl.span.clone(),
+                span: enum_decl.span,
                 scope_depth: self.scope_depth,
                 is_used: false,
             },
@@ -425,7 +425,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 is_mutable: var_decl.is_mutable,
                 var_type: var_decl.type_annotation.as_ref().map(|t| format!("{:?}", t)),
             },
-            span: var_decl.span.clone(),
+            span: var_decl.span,
             scope_depth: self.scope_depth,
             is_used: false,
         };
@@ -435,7 +435,7 @@ impl<'a> SemanticAnalyzer<'a> {
         // Track declared variables for unused variable checking
         self.declared_variables
             .entry(var_decl.name.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(symbol_info);
 
         // Analyze initial value expression if present
@@ -455,7 +455,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 SymbolInfo {
                     name: param.name.clone(),
                     symbol_type: SymbolType::Parameter,
-                    span: param.span.clone(),
+                    span: param.span,
                     scope_depth: self.scope_depth,
                     is_used: false,
                 },
@@ -515,7 +515,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     is_mutable: false,
                     var_type: None,
                 },
-                span: for_stmt.span.clone(),
+                span: for_stmt.span,
                 scope_depth: self.scope_depth,
                 is_used: true, // Loop variables are typically used
             },
@@ -600,7 +600,7 @@ impl<'a> SemanticAnalyzer<'a> {
             if let Some(pos) = position {
                 self.used_variables
                     .entry(ident_expr.name.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(pos);
             }
         }

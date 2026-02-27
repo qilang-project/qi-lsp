@@ -297,42 +297,42 @@ impl QiLanguageServer {
     // Request handlers
     async fn handle_completion_request(&self, request: Request) -> Result<()> {
         let documents = self.documents.read().await;
-        completion::handle_completion(&self.connection, request, &*documents).await
+        completion::handle_completion(&self.connection, request, &documents).await
     }
 
     async fn handle_hover_request(&self, request: Request) -> Result<()> {
         let documents = self.documents.read().await;
-        hover::handle_hover(&self.connection, request, &*documents).await
+        hover::handle_hover(&self.connection, request, &documents).await
     }
 
     async fn handle_definition_request(&self, request: Request) -> Result<()> {
         let documents = self.documents.read().await;
-        definition::handle_definition(&self.connection, request, &*documents).await
+        definition::handle_definition(&self.connection, request, &documents).await
     }
 
     async fn handle_references_request(&self, request: Request) -> Result<()> {
         let documents = self.documents.read().await;
-        references::handle_references(&self.connection, request, &*documents).await
+        references::handle_references(&self.connection, request, &documents).await
     }
 
     async fn handle_formatting_request(&self, request: Request) -> Result<()> {
         let documents = self.documents.read().await;
-        formatting::handle_formatting(&self.connection, request, &*documents).await
+        formatting::handle_formatting(&self.connection, request, &documents).await
     }
 
     async fn handle_workspace_symbol_request(&self, request: Request) -> Result<()> {
         let documents = self.documents.read().await;
-        workspace_symbols::handle_workspace_symbols(&self.connection, request, &*documents).await
+        workspace_symbols::handle_workspace_symbols(&self.connection, request, &documents).await
     }
 
     async fn handle_document_symbol_request(&self, request: Request) -> Result<()> {
         let documents = self.documents.read().await;
-        document_symbols::handle_document_symbols(&self.connection, request, &*documents).await
+        document_symbols::handle_document_symbols(&self.connection, request, &documents).await
     }
 
     async fn handle_rename_request(&self, request: Request) -> Result<()> {
         let documents = self.documents.read().await;
-        rename::handle_rename(&self.connection, request, &*documents).await
+        rename::handle_rename(&self.connection, request, &documents).await
     }
 
     async fn handle_build_request(&self, request: Request) -> Result<()> {
@@ -367,7 +367,7 @@ impl QiLanguageServer {
             self.documents.write().await.open_document(&uri, text.clone());
             {
                 let documents = self.documents.read().await;
-                diagnostics::update_diagnostics(&self.connection, &uri, &text, &*documents).await?;
+                diagnostics::update_diagnostics(&self.connection, &uri, &text, &documents).await?;
             }
             debug!("Opened document: {}", uri);
         }
@@ -380,14 +380,14 @@ impl QiLanguageServer {
 
         let uri = params.text_document.uri.to_string();
 
-        if let Some(changes) = params.content_changes.get(0) {
+        if let Some(changes) = params.content_changes.first() {
             self.documents.write().await.update_document(&uri, &changes.text);
 
             // Re-analyze and update diagnostics
             if let Some(document) = self.documents.read().await.get_document(&uri) {
                 let content = document.rope.to_string();
                 let documents = self.documents.read().await;
-                diagnostics::update_diagnostics(&self.connection, &uri, &content, &*documents).await?;
+                diagnostics::update_diagnostics(&self.connection, &uri, &content, &documents).await?;
                 debug!("Updated document: {}", uri);
             }
         }
@@ -415,7 +415,7 @@ impl QiLanguageServer {
         if let Some(document) = self.documents.read().await.get_document(&uri) {
             let content = document.rope.to_string();
             let documents = self.documents.read().await;
-            diagnostics::update_diagnostics(&self.connection, &uri, &content, &*documents).await?;
+            diagnostics::update_diagnostics(&self.connection, &uri, &content, &documents).await?;
         }
 
         Ok(())

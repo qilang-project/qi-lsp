@@ -52,11 +52,8 @@ fn main() {
                     diagnostic.severity
                 );
                 if let Some(code) = &diagnostic.code {
-                    match code {
-                        lsp_types::NumberOrString::String(code_str) => {
-                            println!("   代码: {}", code_str);
-                        }
-                        _ => {}
+                    if let lsp_types::NumberOrString::String(code_str) = code {
+                        println!("   代码: {}", code_str);
                     }
                 }
                 println!("   位置: 行 {}-{}",
@@ -76,16 +73,13 @@ fn main() {
 
                 for diagnostic in &diagnostics {
                     if let Some(code) = &diagnostic.code {
-                        match code {
-                            lsp_types::NumberOrString::String(code_str) => {
-                                match code_str.as_str() {
-                                    "unused-variable" => unused_vars += 1,
-                                    "undefined-symbol" | "undefined-function" => undefined_symbols += 1,
-                                    "duplicate-function" | "duplicate-variable" => duplicate_decls += 1,
-                                    _ => {}
-                                }
+                        if let lsp_types::NumberOrString::String(code_str) = code {
+                            match code_str.as_str() {
+                                "unused-variable" => unused_vars += 1,
+                                "undefined-symbol" | "undefined-function" => undefined_symbols += 1,
+                                "duplicate-function" | "duplicate-variable" => duplicate_decls += 1,
+                                _ => {}
                             }
-                            _ => {}
                         }
                     }
                 }
