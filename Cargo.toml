@@ -1,6 +1,6 @@
 [package]
 name = "qi-lsp"
-version = "0.1.0"
+version = "2026.4.24.1"
 edition = "2021"
 authors = ["Qi Language Team <team@qi-lang.org>"]
 description = "Language Server Protocol implementation for Qi programming language"
