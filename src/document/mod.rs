@@ -249,3 +249,88 @@ impl From<DocumentRange> for lsp_types::Range {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mgr_with(content: &str) -> (DocumentManager, String) {
+        let dm = DocumentManager::new();
+        let uri = "file:///test.qi".to_string();
+        dm.open_document(&uri, content.to_string());
+        (dm, uri)
+    }
+
+    #[test]
+    fn open_close_roundtrip() {
+        let (dm, uri) = mgr_with("包 主程序;\n");
+        assert!(dm.has_document(&uri));
+        assert_eq!(dm.get_document_content(&uri).as_deref(), Some("包 主程序;\n"));
+        dm.close_document(&uri);
+        assert!(!dm.has_document(&uri));
+    }
+
+    #[test]
+    fn update_bumps_version_and_replaces_text() {
+        let (dm, uri) = mgr_with("a");
+        dm.update_document(&uri, "b");
+        let doc = dm.get_document(&uri).unwrap();
+        assert_eq!(doc.version, 2);
+        assert_eq!(doc.rope.to_string(), "b");
+    }
+
+    #[test]
+    fn position_offset_roundtrip_ascii() {
+        let (dm, uri) = mgr_with("abc\ndef\n");
+        let pos = DocumentPosition { line: 1, character: 2 };
+        let off = dm.position_to_offset(&uri, pos).unwrap();
+        let back = dm.offset_to_position(&uri, off).unwrap();
+        assert_eq!(back, pos);
+    }
+
+    #[test]
+    fn position_offset_roundtrip_chinese() {
+        // BMP CJK: each char is 1 rope char (and 1 UTF-16 code unit).
+        // line 1, character 2 should land just after 变量 → before space.
+        let (dm, uri) = mgr_with("包 主程序;\n变量 x = 1;\n");
+        let pos = DocumentPosition { line: 1, character: 2 };
+        let off = dm.position_to_offset(&uri, pos).unwrap();
+        let back = dm.offset_to_position(&uri, off).unwrap();
+        assert_eq!(back, pos);
+    }
+
+    #[test]
+    fn position_past_end_returns_none() {
+        let (dm, uri) = mgr_with("x\n");
+        assert!(dm
+            .position_to_offset(&uri, DocumentPosition { line: 5, character: 0 })
+            .is_none());
+    }
+
+    #[test]
+    fn range_text_extracts_substring() {
+        let (dm, uri) = mgr_with("包 主程序;\n变量 x = 1;\n");
+        let r = DocumentRange {
+            start: DocumentPosition { line: 1, character: 0 },
+            end: DocumentPosition { line: 1, character: 2 },
+        };
+        let t = dm.get_range_text(&uri, r).unwrap();
+        assert_eq!(t, "变量");
+    }
+
+    #[test]
+    fn line_content_chinese() {
+        let (dm, uri) = mgr_with("包 主程序;\n变量 名字 = \"小李\";\n");
+        let line = dm.get_line_content(&uri, 1).unwrap();
+        assert!(line.contains("变量 名字"));
+    }
+
+    #[test]
+    fn parse_errors_for_garbage() {
+        let (dm, uri) = mgr_with("@@@");
+        // Garbage input may either fail to parse, or parse to an empty program;
+        // either way, asking for errors must not panic, and the document still tracks.
+        assert!(dm.has_document(&uri));
+        let _ = dm.get_document_errors(&uri);
+    }
+}

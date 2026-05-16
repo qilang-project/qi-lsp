@@ -15,6 +15,9 @@ pub mod hover;
 pub mod definition;
 pub mod references;
 pub mod formatting;
+pub mod folding;
+pub mod semantic_tokens;
+pub mod text;
 pub mod workspace_symbols;
 pub mod document_symbols;
 pub mod rename;
@@ -26,7 +29,9 @@ use lsp_server::{Connection, Message, Request, Response};
 use lsp_types::{
     InitializeParams, InitializeResult, ServerCapabilities, TextDocumentSyncCapability,
     TextDocumentSyncKind, CompletionOptions, HoverProviderCapability,
-    PositionEncodingKind, OneOf,
+    PositionEncodingKind, OneOf, FoldingRangeProviderCapability,
+    SemanticTokensOptions, SemanticTokensServerCapabilities, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokenType, WorkDoneProgressOptions,
 };
 use tokio::sync::RwLock;
 
@@ -102,19 +107,44 @@ impl QiLanguageServer {
         let initialize_params: InitializeParams = serde_json::from_value(params)
             .map_err(|e| anyhow::anyhow!("Failed to parse initialize params: {}", e))?;
 
+        // Position encoding: prefer UTF-8 when the client supports it (modern editors do);
+        // qi source is heavy CJK and UTF-8 byte offsets line up 1:1 with our Rope/byte indexing.
+        // Fall back to UTF-16 for spec compatibility.
+        let position_encoding = initialize_params
+            .capabilities
+            .general
+            .as_ref()
+            .and_then(|g| g.position_encodings.as_ref())
+            .and_then(|encs| {
+                if encs.contains(&PositionEncodingKind::UTF8) {
+                    Some(PositionEncodingKind::UTF8)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(PositionEncodingKind::UTF16);
+
         let server_capabilities = ServerCapabilities {
             notebook_document_sync: None,
-            position_encoding: Some(PositionEncodingKind::UTF16),
+            position_encoding: Some(position_encoding),
             text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
             completion_provider: Some(CompletionOptions {
                 resolve_provider: Some(false),
+                // Space removed — was triggering completion on every whitespace.
+                // Common Chinese keyword prefixes kick in completion when typing.
                 trigger_characters: Some(vec![
                     ".".to_string(),
                     "(".to_string(),
-                    " ".to_string(),
-                    "可".to_string(), // Chinese keywords trigger
+                    ":".to_string(),
+                    "包".to_string(),
                     "函".to_string(),
                     "变".to_string(),
+                    "如".to_string(),
+                    "当".to_string(),
+                    "返".to_string(),
+                    "导".to_string(),
+                    "公".to_string(),
+                    "异".to_string(),
                 ]),
                 work_done_progress_options: Default::default(),
                 all_commit_characters: None,
@@ -124,6 +154,7 @@ impl QiLanguageServer {
             definition_provider: Some(OneOf::Left(true)),
             references_provider: Some(OneOf::Left(true)),
             document_formatting_provider: Some(OneOf::Left(true)),
+            document_range_formatting_provider: Some(OneOf::Left(true)),
             workspace_symbol_provider: Some(OneOf::Left(true)),
             workspace: None,
             execute_command_provider: None,
@@ -136,18 +167,35 @@ impl QiLanguageServer {
             code_lens_provider: None,
             document_link_provider: None,
             color_provider: None,
-            folding_range_provider: None,
+            folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
             declaration_provider: None,
             implementation_provider: None,
             type_definition_provider: None,
             document_on_type_formatting_provider: None,
-            semantic_tokens_provider: None,
+            semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
+                SemanticTokensOptions {
+                    work_done_progress_options: WorkDoneProgressOptions::default(),
+                    legend: SemanticTokensLegend {
+                        token_types: vec![
+                            SemanticTokenType::KEYWORD,
+                            SemanticTokenType::TYPE,
+                            SemanticTokenType::FUNCTION,
+                            SemanticTokenType::VARIABLE,
+                            SemanticTokenType::STRING,
+                            SemanticTokenType::NUMBER,
+                            SemanticTokenType::COMMENT,
+                        ],
+                        token_modifiers: vec![],
+                    },
+                    range: Some(false),
+                    full: Some(SemanticTokensFullOptions::Bool(true)),
+                },
+            )),
             call_hierarchy_provider: None,
             linked_editing_range_provider: None,
             inline_value_provider: None,
             inlay_hint_provider: None,
             diagnostic_provider: None,
-            document_range_formatting_provider: None,
             experimental: None,
             moniker_provider: None,
         };
@@ -222,6 +270,15 @@ impl QiLanguageServer {
             }
             "textDocument/formatting" => {
                 self.handle_formatting_request(request).await?;
+            }
+            "textDocument/rangeFormatting" => {
+                self.handle_range_formatting_request(request).await?;
+            }
+            "textDocument/foldingRange" => {
+                self.handle_folding_range_request(request).await?;
+            }
+            "textDocument/semanticTokens/full" => {
+                self.handle_semantic_tokens_full_request(request).await?;
             }
             "workspace/symbol" => {
                 self.handle_workspace_symbol_request(request).await?;
@@ -318,6 +375,21 @@ impl QiLanguageServer {
     async fn handle_formatting_request(&self, request: Request) -> Result<()> {
         let documents = self.documents.read().await;
         formatting::handle_formatting(&self.connection, request, &documents).await
+    }
+
+    async fn handle_range_formatting_request(&self, request: Request) -> Result<()> {
+        let documents = self.documents.read().await;
+        formatting::handle_range_formatting(&self.connection, request, &documents).await
+    }
+
+    async fn handle_folding_range_request(&self, request: Request) -> Result<()> {
+        let documents = self.documents.read().await;
+        folding::handle_folding_range(&self.connection, request, &documents).await
+    }
+
+    async fn handle_semantic_tokens_full_request(&self, request: Request) -> Result<()> {
+        let documents = self.documents.read().await;
+        semantic_tokens::handle_semantic_tokens_full(&self.connection, request, &documents).await
     }
 
     async fn handle_workspace_symbol_request(&self, request: Request) -> Result<()> {
