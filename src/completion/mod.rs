@@ -27,22 +27,20 @@ pub async fn handle_completion(
     let uri = params.text_document_position.text_document.uri.to_string();
     let position = params.text_document_position.position;
 
-    // Get document and context
-    let mut completion_items = Vec::new();
-
-    // Add keyword completions
-    completion_items.extend(get_keyword_completions());
-
-    // Add type completions
-    completion_items.extend(get_type_completions());
-
-    // Get document-specific completions if AST is available
-    if let Some(ast) = document_manager.get_document_ast(&uri) {
-        completion_items.extend(get_context_completions(&ast, &uri, position, document_manager));
-    }
-
-    // Filter completions based on current context
-    completion_items = filter_completions_by_context(completion_items, &uri, position, document_manager);
+    // Decide completions in a single pass driven by context. The previous
+    // implementation always pushed keywords+types unconditionally then ran a
+    // second filter step that recomputed context, producing duplicates and
+    // useless work on every keystroke.
+    let completion_items = match document_manager.get_document_ast(&uri) {
+        Some(ast) => get_context_completions(&ast, &uri, position, document_manager),
+        None => {
+            // Parse failed: fall back to keyword+type completions so the user
+            // still sees something useful while the AST is broken.
+            let mut items = get_keyword_completions();
+            items.extend(get_type_completions());
+            items
+        }
+    };
 
     let items_count = completion_items.len();
     let response = CompletionResponse::Array(completion_items);
@@ -210,14 +208,12 @@ fn get_context_completions(
 ) -> Vec<CompletionItem> {
     let mut completions = Vec::new();
 
-    // Get current line and character position
-    let line_content = document_manager.get_line_content(uri, position.line as usize)
-        .unwrap_or_default();
-    let char_pos = position.character as usize;
-    let before_cursor = &line_content[..char_pos.min(line_content.len())];
+    // Pull the text strictly before the cursor in a CJK-safe way.
+    // (Slicing `line_content` by `character as bytes` panicked mid-codepoint.)
+    let before_cursor = crate::text::line_before_cursor(uri, position, document_manager);
 
     // Analyze context based on what was typed before cursor
-    let context = analyze_completion_context(before_cursor, uri, position, document_manager);
+    let context = analyze_completion_context(&before_cursor, uri, position, document_manager);
 
     match context {
         CompletionContext::VariableDeclaration => {
@@ -702,20 +698,20 @@ fn format_type_annotation(type_annotation: &qi_compiler::parser::TypeNode) -> St
     }
 }
 
-/// Filter completions based on current context
+/// Filter completions based on current context.
+///
+/// Kept around for callers that already have a ready item list — but the main
+/// `handle_completion` path now goes straight through `get_context_completions`
+/// which already picks the right set.
+#[allow(dead_code)]
 fn filter_completions_by_context(
     items: Vec<CompletionItem>,
     uri: &str,
     position: Position,
     document_manager: &DocumentManager,
 ) -> Vec<CompletionItem> {
-    // Get current line content to determine context
-    let line_content = document_manager.get_line_content(uri, position.line as usize)
-        .unwrap_or_default();
+    let before_cursor = crate::text::line_before_cursor(uri, position, document_manager);
 
-    let before_cursor = &line_content[..(position.character as usize).min(line_content.len())];
-
-    // Simple context filtering based on what was typed before cursor
     if before_cursor.ends_with('.') {
         // Field/method access context - only show appropriate items
         items
@@ -769,6 +765,85 @@ fn create_simple_completion(
         commit_characters: None,
         data: None,
         tags: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::DocumentManager;
+
+    fn mgr_with(content: &str) -> (DocumentManager, String) {
+        let dm = DocumentManager::new();
+        let uri = "file:///t.qi".to_string();
+        dm.open_document(&uri, content.to_string());
+        (dm, uri)
+    }
+
+    #[test]
+    fn analyze_context_detects_type_annotation() {
+        // Cursor right after `:` should request a type completion.
+        // Use a string that already ends with `:` so we don't need cursor math.
+        assert_eq!(
+            analyze_completion_context("变量 x:", "file:///t.qi", Position { line: 0, character: 0 }, &DocumentManager::new()),
+            CompletionContext::VariableDeclaration
+        );
+    }
+
+    #[test]
+    fn analyze_context_detects_dot_access() {
+        let ctx = analyze_completion_context(
+            "用户1.",
+            "file:///t.qi",
+            Position { line: 0, character: 0 },
+            &DocumentManager::new(),
+        );
+        match ctx {
+            CompletionContext::StructFieldAccess { struct_name } => {
+                assert_eq!(struct_name, "用户1");
+            }
+            other => panic!("expected StructFieldAccess, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn analyze_context_detects_import_prefix() {
+        let ctx = analyze_completion_context(
+            "导入 标",
+            "file:///t.qi",
+            Position { line: 0, character: 0 },
+            &DocumentManager::new(),
+        );
+        assert_eq!(ctx, CompletionContext::ImportStatement);
+    }
+
+    #[test]
+    fn context_completions_no_panic_on_cjk_cursor() {
+        // Regression: cursor placed inside CJK identifiers previously byte-sliced
+        // and panicked in `before_cursor` extraction.
+        let src = "包 主程序;\n变量 名字 = 1;\n函数 计算(参数: 整数) { }\n";
+        let (dm, uri) = mgr_with(src);
+        let ast = dm.get_document_ast(&uri).expect("parses");
+        for line in 0..3u32 {
+            for col in 0..30u32 {
+                let _ = get_context_completions(&ast, &uri, Position { line, character: col }, &dm);
+            }
+        }
+    }
+
+    #[test]
+    fn type_completion_picked_after_colon() {
+        let src = "变量 x: \n";
+        let (dm, uri) = mgr_with(src);
+        let ast = dm.get_document_ast(&uri);
+        // Without AST or with AST: ending in `:` should produce TYPE_PARAMETER items.
+        let items = match ast {
+            Some(ast) => get_context_completions(&ast, &uri, Position { line: 0, character: 7 }, &dm),
+            None => get_type_completions(),
+        };
+        assert!(items.iter().any(|i| i.label == "整数"));
+        // Should NOT include keyword 函数 in pure type context.
+        assert!(!items.iter().any(|i| i.label == "函数" && i.kind == Some(CompletionItemKind::KEYWORD)));
     }
 }
 

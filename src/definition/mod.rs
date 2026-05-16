@@ -99,137 +99,121 @@ fn find_definition(
     None
 }
 
-/// Get the word at the current cursor position
+/// Get the word at the current cursor position.
+///
+/// Shares the CJK-safe helper with hover/completion. Previously this had its
+/// own copy that byte-sliced character indices and panicked on any cursor
+/// inside a Chinese identifier.
 fn get_word_at_position(
     uri: &str,
     position: Position,
     document_manager: &DocumentManager,
 ) -> Option<String> {
-    let line_content = document_manager.get_line_content(uri, position.line as usize)?;
-    let char_pos = position.character as usize;
+    crate::text::word_at_position(uri, position, document_manager).map(|(w, _)| w)
+}
 
-    if char_pos >= line_content.len() {
-        return None;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::DocumentManager;
+
+    fn mgr_with(content: &str) -> (DocumentManager, String) {
+        let dm = DocumentManager::new();
+        let uri = "file:///t.qi".to_string();
+        dm.open_document(&uri, content.to_string());
+        (dm, uri)
     }
 
-    // Find the start and end of the word
-    let mut start = char_pos;
-    let mut end = char_pos;
+    #[test]
+    fn method_call_info_extracts_cjk_obj_and_method() {
+        let (dm, uri) = mgr_with("变量 r = 工具包.加法(1, 2);\n");
+        // line:  变 量 ␣ r ␣ = ␣ 工 具 包 . 加 法 ( ...
+        // char:   0  1 2 3 4 5 6 7 8 9 10 11 12 13
+        let info = get_method_call_info(&uri, Position { line: 0, character: 12 }, &dm);
+        assert_eq!(info, Some(("工具包".to_string(), "加法".to_string())));
+    }
 
-    // Find word start (move left until non-word character)
-    while start > 0 {
-        let ch = line_content.chars().nth(start - 1)?;
-        if !is_word_char(ch) {
-            break;
+    #[test]
+    fn method_call_info_none_when_no_dot() {
+        let (dm, uri) = mgr_with("函数 计算() {}\n");
+        let info = get_method_call_info(&uri, Position { line: 0, character: 4 }, &dm);
+        assert_eq!(info, None);
+    }
+
+    #[test]
+    fn find_definition_does_not_panic_on_cjk_cursor() {
+        // Regression: scan every cursor index across a CJK-heavy line.
+        let (dm, uri) = mgr_with("包 主程序;\n变量 名字 = 1;\n函数 计算() { 名字 = 2; }\n");
+        for line in 0..3u32 {
+            for col in 0..30u32 {
+                let _ = find_definition(
+                    &uri,
+                    Position { line, character: col },
+                    &dm,
+                );
+            }
         }
-        start -= 1;
-    }
-
-    // Find word end (move right until non-word character)
-    while end < line_content.len() {
-        let ch = line_content.chars().nth(end)?;
-        if !is_word_char(ch) {
-            break;
-        }
-        end += 1;
-    }
-
-    if start < end {
-        Some(line_content[start..end].to_string())
-    } else {
-        None
     }
 }
 
-/// Check if a character is part of a word (identifier or Chinese character)
-fn is_word_char(ch: char) -> bool {
-    ch.is_alphanumeric() || ch == '_' || ch as u32 >= 0x4E00 && ch as u32 <= 0x9FFF
-}
-
-/// Get method call information if the cursor is on a method call
-/// Returns (object_name, method_name) if this is a method call like "工具包.加法"
+/// Get method call info when the cursor is on the method portion of `OBJ.METHOD`.
+///
+/// Works on a `chars()` Vec to stay CJK-safe — every index is a character
+/// index, never a byte offset, so identifiers like `工具包.加法` are handled
+/// without the byte-boundary panic the previous implementation hit.
 fn get_method_call_info(
     uri: &str,
     position: Position,
     document_manager: &DocumentManager,
 ) -> Option<(String, String)> {
-    let line_content = document_manager.get_line_content(uri, position.line as usize)?;
+    let line = document_manager.get_line_content(uri, position.line as usize)?;
+    let chars: Vec<char> = line.trim_end_matches('\n').trim_end_matches('\r').chars().collect();
     let char_pos = position.character as usize;
-
-    if char_pos >= line_content.len() {
+    if char_pos > chars.len() {
         return None;
     }
 
-    // Get the current word (method name)
-    let mut method_start = char_pos;
-    let mut method_end = char_pos;
+    let is_ident = crate::text::is_identifier_char;
 
-    // Find method name boundaries
-    while method_start > 0 {
-        let ch = line_content.chars().nth(method_start - 1)?;
-        if !is_word_char(ch) {
-            break;
-        }
+    // Walk left from cursor while identifier chars.
+    let mut method_start = char_pos;
+    while method_start > 0 && is_ident(chars[method_start - 1]) {
         method_start -= 1;
     }
-
-    while method_end < line_content.len() {
-        let ch = line_content.chars().nth(method_end)?;
-        if !is_word_char(ch) {
-            break;
-        }
+    // Walk right from cursor while identifier chars.
+    let mut method_end = char_pos;
+    while method_end < chars.len() && is_ident(chars[method_end]) {
         method_end += 1;
     }
-
     if method_start >= method_end {
         return None;
     }
+    let method_name: String = chars[method_start..method_end].iter().collect();
 
-    let method_name = line_content[method_start..method_end].to_string();
-
-    // Check if there's a dot before the method name
-    if method_start > 0 {
-        let ch_before_method = line_content.chars().nth(method_start - 1)?;
-        if ch_before_method == '.' {
-            // Found a dot, now find the object name
-            let mut object_start = method_start - 1; // Start from the dot
-
-            // Skip the dot
-            if object_start > 0 {
-                object_start -= 1;
-            } else {
-                return None;
-            }
-
-            // Skip whitespace before the dot
-            while object_start > 0 {
-                let ch = line_content.chars().nth(object_start)?;
-                if !ch.is_whitespace() {
-                    break;
-                }
-                object_start -= 1;
-            }
-
-            let object_end = object_start + 1;
-
-            // Find object name boundaries
-            while object_start > 0 {
-                let ch = line_content.chars().nth(object_start - 1)?;
-                if !is_word_char(ch) {
-                    break;
-                }
-                object_start -= 1;
-            }
-
-            if object_start < object_end {
-                let object_name = line_content[object_start..object_end].to_string();
-                debug!("Found method call: {}.{}", object_name, method_name);
-                return Some((object_name, method_name));
-            }
-        }
+    // Need a `.` immediately before the method identifier (after optional whitespace).
+    let mut dot_pos = method_start;
+    while dot_pos > 0 && chars[dot_pos - 1].is_whitespace() {
+        dot_pos -= 1;
+    }
+    if dot_pos == 0 || chars[dot_pos - 1] != '.' {
+        return None;
     }
 
-    None
+    // Object identifier sits to the left of the dot (skip any whitespace between).
+    let mut object_end = dot_pos - 1; // index of the dot
+    while object_end > 0 && chars[object_end - 1].is_whitespace() {
+        object_end -= 1;
+    }
+    let mut object_start = object_end;
+    while object_start > 0 && is_ident(chars[object_start - 1]) {
+        object_start -= 1;
+    }
+    if object_start >= object_end {
+        return None;
+    }
+    let object_name: String = chars[object_start..object_end].iter().collect();
+    debug!("Found method call: {}.{}", object_name, method_name);
+    Some((object_name, method_name))
 }
 
 /// Normalize URI to file path, handling both Unix and Windows formats

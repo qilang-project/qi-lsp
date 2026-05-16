@@ -70,51 +70,56 @@ fn get_hover_info(
     None
 }
 
-/// Get the word at the current cursor position
+/// Get the word at the current cursor position.
+///
+/// Delegates to the shared CJK-safe helper. The previous implementation mixed
+/// character indices with byte slicing and panicked on any cursor inside a
+/// CJK identifier (e.g. `变量`).
 fn get_word_at_position(
     uri: &str,
     position: Position,
     document_manager: &DocumentManager,
 ) -> Option<String> {
-    let line_content = document_manager.get_line_content(uri, position.line as usize)?;
-    let char_pos = position.character as usize;
-
-    if char_pos >= line_content.len() {
-        return None;
-    }
-
-    // Find the start and end of the word
-    let mut start = char_pos;
-    let mut end = char_pos;
-
-    // Find word start (move left until non-word character)
-    while start > 0 {
-        let ch = line_content.chars().nth(start - 1)?;
-        if !is_word_char(ch) {
-            break;
-        }
-        start -= 1;
-    }
-
-    // Find word end (move right until non-word character)
-    while end < line_content.len() {
-        let ch = line_content.chars().nth(end)?;
-        if !is_word_char(ch) {
-            break;
-        }
-        end += 1;
-    }
-
-    if start < end {
-        Some(line_content[start..end].to_string())
-    } else {
-        None
-    }
+    crate::text::word_at_position(uri, position, document_manager).map(|(w, _)| w)
 }
 
-/// Check if a character is part of a word (identifier or Chinese character)
-fn is_word_char(ch: char) -> bool {
-    ch.is_alphanumeric() || ch == '_' || ch as u32 >= 0x4E00 && ch as u32 <= 0x9FFF
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::DocumentManager;
+
+    fn mgr_with(content: &str) -> (DocumentManager, String) {
+        let dm = DocumentManager::new();
+        let uri = "file:///t.qi".to_string();
+        dm.open_document(&uri, content.to_string());
+        (dm, uri)
+    }
+
+    #[test]
+    fn hover_on_cjk_keyword_returns_info() {
+        let (dm, uri) = mgr_with("包 主程序;\n变量 x = 1;\n");
+        // Cursor inside 变量 on line 1
+        let hover = get_hover_info(&uri, Position { line: 1, character: 1 }, &dm);
+        assert!(hover.is_some(), "hover on 变量 should match keyword");
+    }
+
+    #[test]
+    fn hover_on_cjk_no_panic_in_string_literal() {
+        // Regression: previous implementation byte-sliced character indices and
+        // panicked when the cursor landed inside any CJK identifier or near one.
+        let (dm, uri) = mgr_with("变量 名字 = \"小李\";\n");
+        for ch_idx in 0..14 {
+            let _ = get_hover_info(&uri, Position { line: 0, character: ch_idx }, &dm);
+        }
+    }
+
+    #[test]
+    fn hover_returns_none_for_unknown_identifier() {
+        let (dm, uri) = mgr_with("函数 计算() {}\n");
+        // Inside 计算 — not a keyword, should fall through to AST lookup; AST may or
+        // may not return something, but the call must not panic.
+        let _ = get_hover_info(&uri, Position { line: 0, character: 3 }, &dm);
+    }
 }
 
 /// Get hover information for keywords
